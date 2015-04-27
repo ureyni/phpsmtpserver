@@ -52,6 +52,7 @@ if (!$socket) {
             if ($buffer == ".") {
                 $getData = false;
                 sendMessage($conn, "100", "250 Ok will send to mail");
+                print $data;
                 continue;
             }
             if ($getData == true) {
