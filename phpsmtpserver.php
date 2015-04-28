@@ -1,6 +1,7 @@
 <?php
 
 define("PHP_CRLF", "\r\n");
+define('SENDMAIL','/usr/sbin/sendmail');
 include 'config.php';
 
 $replyCodes = array(
@@ -44,8 +45,9 @@ if (!$socket) {
     while ($conn = stream_socket_accept($socket)) {
         sendMessage($conn, "220", gethostname() . " SMTP  KEPHS");
         while (($buffer = fgets($conn)) !== false) {
-            $buffer = strtolower(trim($buffer));
             echo $buffer;
+            $rbuffer = $buffer;
+            $buffer = strtolower(trim($buffer));
             if ($buffer == "quit") {
                 sendMessage($conn, "221", gethostname());
                 fclose($conn);
@@ -64,10 +66,12 @@ if (!$socket) {
                     file_put_contents($filename, $data);
                 }
                 print $data;
+                print PHP_CRLF.SENDMAIL . " -f $from ".implode(" ", $to)."<" . $filename;
+                $sendmail = shell_exec(SENDMAIL . " -f $from ".implode(" ", $to)."<" . $filename);
                 continue;
             }
             if ($getData == true) {
-                $data .= $buffer;
+                $data .= $rbuffer;
             }
             if ($buffer == "data") {
                 if (count($to) == 0) {
@@ -78,6 +82,7 @@ if (!$socket) {
                     sendMessage($conn, "503", " Need MAIL FROM Command");
                     continue;
                 }
+                sendMessage($conn, "354");
                 $getData = true;
                 $data = "";
             }
