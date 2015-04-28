@@ -1,6 +1,7 @@
 <?php
 
 define("PHP_CRLF", "\r\n");
+include 'config.php';
 
 $replyCodes = array(
     "500" => "500 Syntax error, command unrecognized %s",
@@ -52,6 +53,15 @@ if (!$socket) {
             if ($buffer == ".") {
                 $getData = false;
                 sendMessage($conn, "100", "250 Ok will send to mail");
+                if ($config["SAVE_TMP_FILE"] == true) {
+                    $filename = $config["TMP_DIR"] . DIRECTORY_SEPARATOR;
+                    if (!empty($config["TMP_FILE_FORMAT_D"]))
+                        $filename .=date($config["TMP_FILE_FORMAT_D"]);
+                    if (!empty($config["TMP_FILE_FORMAT_RAND"]))
+                        $filename .="." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
+                    $filename .= ".eml";
+                    file_put_contents($filename, $data);
+                }
                 print $data;
                 continue;
             }
@@ -72,6 +82,13 @@ if (!$socket) {
             }
             if (substr($buffer, 0, 4) == "ehlo") {
                 fwrite($conn, "250-" . gethostname() . PHP_CRLF);
+                fwrite($conn, "250-PIPELINING" . PHP_CRLF);
+                fwrite($conn, "250-SIZE 10240000" . PHP_CRLF);
+                fwrite($conn, "250-VRFY" . PHP_CRLF);
+                fwrite($conn, "250-ETRN" . PHP_CRLF);
+                fwrite($conn, "250-ENHANCEDSTATUSCODES" . PHP_CRLF);
+                fwrite($conn, "250-8BITMIME" . PHP_CRLF);
+                fwrite($conn, "250 DSN" . PHP_CRLF);
                 continue;
             }
             if (preg_match_all('/^mail from:([^,]*)/', $buffer, $matches, PREG_SET_ORDER)) {
@@ -93,7 +110,7 @@ if (!$socket) {
                 continue;
             }
             if ($getData == false) {
-                sendMessage($conn, "500", "invalid command");
+                sendMessage($conn, "502", "invalid command");
                 continue;
             }
         }
