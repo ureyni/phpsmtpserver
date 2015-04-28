@@ -1,8 +1,11 @@
 <?php
 
 define("PHP_CRLF", "\r\n");
-define('SENDMAIL','/usr/sbin/sendmail');
+define('SENDMAIL', '/usr/sbin/sendmail');
+
 include 'config.php';
+date_default_timezone_set($config["TIME_ZONE"]);
+
 
 $replyCodes = array(
     "500" => "500 Syntax error, command unrecognized %s",
@@ -28,24 +31,35 @@ $replyCodes = array(
     "554" => "554 Transaction failed"
 );
 
+//send message to client on server socket
 function sendMessage($conn, $code, $msg = "") {
     global $replyCodes;
     fwrite($conn, sprintf((isset($replyCodes[$code]) ? $replyCodes[$code] : "%s"), $msg) . PHP_CRLF);
 }
 
-$socket = stream_socket_server("tcp://0.0.0.0:8000", $errno, $errstr);
+//Write to log or syslog
+function phpwrite($message,$priority = LOG_ALERT) {
+    global $config;
+    if ($config["LOG_2_SYSLOG"] == true)
+        syslog($priority, $message);
+    else
+        print date("c") . ":PID->" . getmypid() . ":" . rtrim($message).PHP_EOL;
+}
+
+ini_set("default_socket_timeout", $config["SOCKET_TIMEOUT"]);
+$socket = stream_socket_server($config["PROTOCOL"] . "://" . $config["HOST_IP"] . ":" . $config["PORT_NUMBER"], $errno, $errstr);
 $from = "";
 $to = array();
 $data = "";
 $getData = false;
 if (!$socket) {
-    echo "$errstr ($errno)<br />\n";
+    phpwrite("$errstr ($errno)");
 } else {
-    stream_set_timeout($socket, $config["SOCKET_TIMEOUT"],0);
-    while ($conn = stream_socket_accept($socket)) {
+    phpwrite("Welcome Simple phpsmptserver");
+    while ($conn = stream_socket_accept($socket,-1)) {
         sendMessage($conn, "220", gethostname() . " SMTP  KEPHS");
         while (($buffer = fgets($conn)) !== false) {
-            echo $buffer;
+            phpwrite($buffer);
             $rbuffer = $buffer;
             $buffer = strtolower(trim($buffer));
             if ($buffer == "quit") {
@@ -65,9 +79,9 @@ if (!$socket) {
                     $filename .= ".eml";
                     file_put_contents($filename, $data);
                 }
-                print $data;
-                print PHP_CRLF.SENDMAIL . " -f $from ".implode(" ", $to)."<" . $filename;
-                $sendmail = shell_exec(SENDMAIL . " -f $from ".implode(" ", $to)."<" . $filename);
+                phpwrite($data);
+                phpwrite(PHP_CRLF . SENDMAIL . " -f $from " . implode(" ", $to) . "<" . $filename);
+                $sendmail = shell_exec(SENDMAIL . " -f $from " . implode(" ", $to) . "<" . $filename);
                 continue;
             }
             if ($getData == true) {
@@ -98,7 +112,7 @@ if (!$socket) {
                 continue;
             }
             if (preg_match_all('/^mail from:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                $address =  (isset($matches[0][2])?$matches[0][2]:$matches[0][1]);
+                $address = (isset($matches[0][2]) ? $matches[0][2] : $matches[0][1]);
                 if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                     sendMessage($conn, "501", "invalid mail address " . $address);
                 else {
@@ -108,7 +122,7 @@ if (!$socket) {
                 continue;
             }
             if (preg_match_all('/^rcpt to:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                $address =  (isset($matches[0][2])?$matches[0][2]:$matches[0][1]);
+                $address = (isset($matches[0][2]) ? $matches[0][2] : $matches[0][1]);
                 if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                     sendMessage($conn, "501", "invalid mail address " . $address);
                 else {
