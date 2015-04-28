@@ -1,5 +1,6 @@
 <?php
 
+$config["SOCKET_TIMEOUT"] = 3600;
 $config["SAVE_TMP_FILE"] = true;
 $config["TMP_DIR"] = "/data/maildata01";
 $config["TMP_FILE_FORMAT_D"] = "dmYHis" ;

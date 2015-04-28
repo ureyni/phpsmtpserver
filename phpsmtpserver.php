@@ -40,6 +40,7 @@ $getData = false;
 if (!$socket) {
     echo "$errstr ($errno)<br />\n";
 } else {
+    stream_set_timeout($socket, $config["SOCKET_TIMEOUT"],0);
     while ($conn = stream_socket_accept($socket)) {
         sendMessage($conn, "220", gethostname() . " SMTP  KEPHS");
         while (($buffer = fgets($conn)) !== false) {
@@ -91,20 +92,22 @@ if (!$socket) {
                 fwrite($conn, "250 DSN" . PHP_CRLF);
                 continue;
             }
-            if (preg_match_all('/^mail from:([^,]*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                if (filter_var($matches[0][1], FILTER_VALIDATE_EMAIL) === FALSE)
-                    sendMessage($conn, "501", "invalid mail address " . $matches[0][1]);
+            if (preg_match_all('/^mail from:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
+                $address =  (isset($matches[0][2])?$matches[0][2]:$matches[0][1]);
+                if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
+                    sendMessage($conn, "501", "invalid mail address " . $address);
                 else {
-                    $from = $matches[0][1];
+                    $from = $address;
                     sendMessage($conn, "250");
                 }
                 continue;
             }
-            if (preg_match_all('/^rcpt to:([^,]*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                if (filter_var($matches[0][1], FILTER_VALIDATE_EMAIL) === FALSE)
-                    sendMessage($conn, "501", "invalid mail address " . $matches[0][1]);
+            if (preg_match_all('/^rcpt to:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
+                $address =  (isset($matches[0][2])?$matches[0][2]:$matches[0][1]);
+                if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
+                    sendMessage($conn, "501", "invalid mail address " . $address);
                 else {
-                    $to[] = $matches[0][1];
+                    $to[] = $address;
                     sendMessage($conn, "250");
                 }
                 continue;
