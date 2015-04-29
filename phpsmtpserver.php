@@ -24,7 +24,7 @@ class Client extends Thread {
             $to = array();
             $data = "";
             $getData = false;
-            sendMessage($conn, "220", gethostname() . " SMTP  KEPHS");
+            sendMessage($conn, "220", gethostname() . " SMTP  Remmd");
             while (($buffer = fgets($conn)) !== false) {
                 phpwrite($buffer, $socketid);
                 $rbuffer = $buffer;
