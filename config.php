@@ -10,7 +10,8 @@ $config["TMP_FILE_FORMAT_D"] = "dmYHis" ;
 $config["TMP_FILE_FORMAT_RAND"] = array(1000000, 9000000);
 $config["LOG_2_SYSLOG"] = false;
 $config["TIME_ZONE"] = "Europe/Istanbul";
-
+$config["MAIL_PARSE"] = true;
+$config["MAIL_PARSE_LIB"] = 'mailparseV2.php';
 
 $replyCodes = array(
     "500" => "500 Syntax error, command unrecognized %s",

@@ -20,10 +20,11 @@ class Client extends Thread {
         $conn = $this->socket;
         if ($conn) {
             $socketid = mt_rand(1, 100000);
-            $from = "";
-            $to = array();
+            $frommime = "";
+            $recipients = array();
             $data = "";
             $getData = false;
+            $tmpmimefilename = "";
             sendMessage($conn, "220", gethostname() . " SMTP  Remmd");
             while (($buffer = fgets($conn)) !== false) {
                 phpwrite($buffer, $socketid);
@@ -38,24 +39,24 @@ class Client extends Thread {
                     $getData = false;
                     sendMessage($conn, "100", "250 Ok will send to mail");
                     if ($config["SAVE_TMP_FILE"] == true) {
-                        $filename = $config["TMP_DIR"] . DIRECTORY_SEPARATOR;
+                        $tmpmimefilename = $config["TMP_DIR"] . DIRECTORY_SEPARATOR;
                         if (!empty($config["TMP_FILE_FORMAT_D"]))
-                            $filename .=date($config["TMP_FILE_FORMAT_D"]);
+                            $tmpmimefilename .=date($config["TMP_FILE_FORMAT_D"]);
                         if (!empty($config["TMP_FILE_FORMAT_RAND"]))
-                            $filename .="." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
+                            $tmpmimefilename .="." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
                         $filename .= ".eml";
-                        file_put_contents($filename, $data);
+                        file_put_contents($tmpmimefilename, $data);
                     }
-                    phpwrite($data, $socketid);
-                    phpwrite(PHP_CRLF . SENDMAIL . " -f $from " . implode(" ", $to) . "<" . $filename, $socketid);
-                    $sendmail = shell_exec(SENDMAIL . " -f $from " . implode(" ", $to) . "<" . $filename);
+                    //phpwrite($data, $socketid);
+                   // phpwrite(PHP_CRLF . SENDMAIL . " -f $from " . implode(" ", $recipients) . "<" . $filename, $socketid);
+                    //$sendmail = shell_exec(SENDMAIL . " -f $from " . implode(" ", $recipients) . "<" . $filename);
                     continue;
                 }
                 if ($getData == true) {
                     $data .= $rbuffer;
                 }
                 if ($buffer == "data") {
-                    if (count($to) == 0) {
+                    if (count($recipients) == 0) {
                         sendMessage($conn, "503", " Need RCPT Command");
                         continue;
                     }
@@ -74,7 +75,6 @@ class Client extends Thread {
                     fwrite($conn, "250-VRFY" . PHP_CRLF);
                     fwrite($conn, "250-ETRN" . PHP_CRLF);
                     fwrite($conn, "250-ENHANCEDSTATUSCODES" . PHP_CRLF);
-                    fwrite($conn, "250-8BITMIME" . PHP_CRLF);
                     fwrite($conn, "250 DSN" . PHP_CRLF);
                     continue;
                 }
@@ -83,7 +83,7 @@ class Client extends Thread {
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
-                        $from = $address;
+                        $frommime = $address;
                         sendMessage($conn, "250");
                     }
                     continue;
@@ -93,7 +93,7 @@ class Client extends Thread {
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
-                        $to[] = $address;
+                        $recipients[] = $address;
                         sendMessage($conn, "250");
                     }
                     continue;
@@ -104,6 +104,8 @@ class Client extends Thread {
                 }
             }
             fclose($conn);
+            if (!empty($tmpmimefilename) && $config["MAIL_PARSE"])
+                include $config["MAIL_PARSE_LIB"];
         }
     }
 
