@@ -16,6 +16,8 @@ class Client extends Thread {
 
     public function run() {
         include 'config.php';
+        if($config["MAIL_PARSE"] == true)
+                include $config["MAIL_PARSE_LIB"];
         date_default_timezone_set($config["TIME_ZONE"]);
         $conn = $this->socket;
         if ($conn) {
@@ -44,12 +46,12 @@ class Client extends Thread {
                             $tmpmimefilename .=date($config["TMP_FILE_FORMAT_D"]);
                         if (!empty($config["TMP_FILE_FORMAT_RAND"]))
                             $tmpmimefilename .="." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
-                        $filename .= ".eml";
+                        $tmpmimefilename .= ".eml";
                         file_put_contents($tmpmimefilename, $data);
                     }
                     //phpwrite($data, $socketid);
-                   // phpwrite(PHP_CRLF . SENDMAIL . " -f $from " . implode(" ", $recipients) . "<" . $filename, $socketid);
-                    //$sendmail = shell_exec(SENDMAIL . " -f $from " . implode(" ", $recipients) . "<" . $filename);
+                   // phpwrite(PHP_CRLF . SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename, $socketid);
+                    //$sendmail = shell_exec(SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename);
                     continue;
                 }
                 if ($getData == true) {
@@ -60,7 +62,7 @@ class Client extends Thread {
                         sendMessage($conn, "503", " Need RCPT Command");
                         continue;
                     }
-                    if (empty($from)) {
+                    if (empty($frommime)) {
                         sendMessage($conn, "503", " Need MAIL FROM Command");
                         continue;
                     }
@@ -78,8 +80,8 @@ class Client extends Thread {
                     fwrite($conn, "250 DSN" . PHP_CRLF);
                     continue;
                 }
-                if (preg_match_all('/^mail from:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                    $address = (isset($matches[0][2]) ? $matches[0][2] : $matches[0][1]);
+                if (preg_match_all('/^mail from:(\s|)(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
+                    $address = (isset($matches[0][3])?$matches[0][3]:$matches[0][2]);
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
@@ -88,8 +90,8 @@ class Client extends Thread {
                     }
                     continue;
                 }
-                if (preg_match_all('/^rcpt to:(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                    $address = (isset($matches[0][2]) ? $matches[0][2] : $matches[0][1]);
+                if (preg_match_all('/^rcpt to:(\s|)(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
+                    $address = (isset($matches[0][3])?$matches[0][3]:$matches[0][2]);
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
@@ -104,8 +106,8 @@ class Client extends Thread {
                 }
             }
             fclose($conn);
-            if (!empty($tmpmimefilename) && $config["MAIL_PARSE"])
-                include $config["MAIL_PARSE_LIB"];
+            if (!empty($tmpmimefilename) && $config["MAIL_PARSE_FUNCTION"])
+                $config["MAIL_PARSE_FUNCTION"]();
         }
     }
 

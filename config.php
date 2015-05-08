@@ -12,6 +12,7 @@ $config["LOG_2_SYSLOG"] = false;
 $config["TIME_ZONE"] = "Europe/Istanbul";
 $config["MAIL_PARSE"] = true;
 $config["MAIL_PARSE_LIB"] = 'mailparseV2.php';
+$config["MAIL_PARSE_FUNCTION"] = 'mailparseV2';
 
 $replyCodes = array(
     "500" => "500 Syntax error, command unrecognized %s",
