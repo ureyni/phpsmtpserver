@@ -55,6 +55,7 @@ class Client extends Thread {
                     continue;
                 }
                 if ($getData == true) {
+                    //double dot clear for smtp proxy.
                     if (substr($rbuffer,0,2)=='..' && strlen($rbuffer)>2)
                         $rbuffer = substr($rbuffer, 1);
                     $data .= $rbuffer;
