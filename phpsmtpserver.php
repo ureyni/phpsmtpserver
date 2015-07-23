@@ -55,6 +55,8 @@ class Client extends Thread {
                     continue;
                 }
                 if ($getData == true) {
+                    if (substr($rbuffer,0,2)=='..' && strlen($rbuffer)>2)
+                        $rbuffer = substr($rbuffer, 1);
                     $data .= $rbuffer;
                 }
                 if ($buffer == "data") {
