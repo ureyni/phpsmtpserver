@@ -12,3 +12,14 @@ pthreads (http://pecl.php.net/package/pthreads)
 Run
 
 sh run.sh
+
+php.ini----
+
+memory_limit = 4096M
+#if this get error zend_heap_memory corrupt 
+zend.enable_gc = Off
+report_memleaks = Off
+report_zend_debug = Off
+
+---------------------
+
