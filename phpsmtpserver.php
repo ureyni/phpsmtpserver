@@ -35,6 +35,7 @@ class Client extends Thread {
                 if ($buffer == "quit") {
                     sendMessage($conn, "221", gethostname());
                    // fclose($conn);
+                   stream_socket_shutdown($conn,STREAM_SHUT_WR); 
                     continue;
                 }
                 if ($buffer == ".") {
