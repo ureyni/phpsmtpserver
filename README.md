@@ -20,6 +20,8 @@ memory_limit = 4096M
 zend.enable_gc = Off
 report_memleaks = Off
 report_zend_debug = Off
+---------------------------------
+root@localhost#export USE_ZEND_ALLOC=0
 
 ---------------------
 change zend_varible.c and recompile php....
