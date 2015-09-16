@@ -110,8 +110,8 @@ class Client extends Thread {
             }
             fclose($conn);
             if ($frommime == $config["SYSTEM_SERVICE_ADDR"]){
-                $sendmail = shell_exec(SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename);
-                print "SEND MAIL:".SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename;
+                $sendmail = shell_exec(SENDMAIL . " -i -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename);
+                print "SEND MAIL:".SENDMAIL . " -i -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename;
             }
             else if (!empty($tmpmimefilename) && $config["MAIL_PARSE_FUNCTION"])
                 $config["MAIL_PARSE_FUNCTION"]();
