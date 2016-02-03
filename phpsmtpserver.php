@@ -1,12 +1,30 @@
 <?php
 
 define("PHP_CRLF", "\r\n");
-define('SENDMAIL', '/usr/sbin/sendmail');
+define('SENDMAIL', '/usr/sbin/sendmail -oi');
 
-include 'config.php';
+include 'config_smtp.php';
 date_default_timezone_set($config["TIME_ZONE"]);
+$socket_counter = 0;
+
+function smtp_shutdown() {
+    //global $hatabildirimlistesi;
+    $error = error_get_last();
+    if ($error['type'] === E_ERROR || $error['type'] == E_USER_ERROR) {
+        $debug = debug_backtrace(true);
+        $message = "SMTP Fatal Error From Server : Error  : " . var_export($error, true) . " Debug:" . var_export($debug, true) . "</br>İnfo Server:->" . SERVERNAME . " IP->" . SERVERNAME;
+        print PHP_EOL . "FATAL : " . Date("c") . ":" . (defined("GUID") ? GUID : '...') . ":" . $message;
+//        $ret = errorSend("GENEL", $message);
+    }
+    print PHP_EOL . "ERROR : " . Date("c") . ":" . (defined("GUID") ? GUID : '...') . ":" . var_export($error, true);
+}
+
+register_shutdown_function('smtp_shutdown');
+
 //multi-thread socket
 //pecl pthreads....
+file_put_contents(preg_replace('/\.php$/', '', __FILE__) . ".pid", PHP_EOL . date('c') . "-->" . getmypid(), FILE_APPEND);
+
 class Client extends Thread {
 
     public function __construct($socket) {
@@ -15,9 +33,17 @@ class Client extends Thread {
     }
 
     public function run() {
-        include 'config.php';
-        if($config["MAIL_PARSE"] == true)
-                include $config["MAIL_PARSE_LIB"];
+        register_shutdown_function('smtp_shutdown');
+        include 'config_smtp.php';
+        $int = gc_collect_cycles();
+
+        file_put_contents(preg_replace('/\.php$/', '', __FILE__) . ".pid", PHP_EOL . date('c') . "-->Creator Id-> " . $this->getCreatorId() . ":Thread Id-> " . Thread::getCurrentThreadId(), FILE_APPEND);
+
+        if ($config["LOG_MEM_INFO"] == true)
+            phpwrite(PHP_EOL . Date("c") . ":" . (defined("GUID") ? GUID : '...') . memory_get_peak_usage(true) . ":$socket_counter : Start Memory info : " . $int . ":" . memory_get_usage() . ":" . memory_get_usage(true));
+
+        if ($config["MAIL_PARSE"] == true)
+            include $config["MAIL_PARSE_LIB"];
         date_default_timezone_set($config["TIME_ZONE"]);
         $conn = $this->socket;
         if ($conn) {
@@ -27,14 +53,17 @@ class Client extends Thread {
             $data = "";
             $getData = false;
             $tmpmimefilename = "";
+            $output = array();
             sendMessage($conn, "220", gethostname() . " SMTP  Remmd");
             while (($buffer = fgets($conn)) !== false) {
-                phpwrite($buffer, $socketid);
+                if ($getData == false)
+                    phpwrite($buffer, $socketid);
                 $rbuffer = $buffer;
                 $buffer = strtolower(trim($buffer));
                 if ($buffer == "quit") {
                     sendMessage($conn, "221", gethostname());
-                   // fclose($conn);
+                    //fclose($conn);
+                    stream_socket_shutdown($conn, STREAM_SHUT_WR);
                     continue;
                 }
                 if ($buffer == ".") {
@@ -43,18 +72,23 @@ class Client extends Thread {
                     if ($config["SAVE_TMP_FILE"] == true) {
                         $tmpmimefilename = $config["TMP_DIR"] . DIRECTORY_SEPARATOR;
                         if (!empty($config["TMP_FILE_FORMAT_D"]))
-                            $tmpmimefilename .=date($config["TMP_FILE_FORMAT_D"]);
+                            $tmpmimefilename .= date($config["TMP_FILE_FORMAT_D"]);
                         if (!empty($config["TMP_FILE_FORMAT_RAND"]))
-                            $tmpmimefilename .="." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
+                            $tmpmimefilename .= "." . mt_rand($config["TMP_FILE_FORMAT_RAND"][0], $config["TMP_FILE_FORMAT_RAND"][1]);
+                        if (!file_exists(dirname($tmpmimefilename)))
+                            mkdir(dirname($tmpmimefilename), 0777, true);
+
                         $tmpmimefilename .= ".eml";
                         file_put_contents($tmpmimefilename, $data);
                     }
                     //phpwrite($data, $socketid);
-                   // phpwrite(PHP_CRLF . SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename, $socketid);
+                    // phpwrite(PHP_CRLF . SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename, $socketid);
                     //$sendmail = shell_exec(SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename);
                     continue;
                 }
                 if ($getData == true) {
+                    if (substr($rbuffer, 0, 2) == '..' && strlen($rbuffer) > 2)
+                        $rbuffer = substr($rbuffer, 1);
                     $data .= $rbuffer;
                 }
                 if ($buffer == "data") {
@@ -81,7 +115,7 @@ class Client extends Thread {
                     continue;
                 }
                 if (preg_match_all('/^mail from:(\s|)(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                    $address = (isset($matches[0][3])?$matches[0][3]:$matches[0][2]);
+                    $address = (isset($matches[0][3]) ? $matches[0][3] : $matches[0][2]);
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
@@ -91,7 +125,7 @@ class Client extends Thread {
                     continue;
                 }
                 if (preg_match_all('/^rcpt to:(\s|)(<(.*)>|.*)/', $buffer, $matches, PREG_SET_ORDER)) {
-                    $address = (isset($matches[0][3])?$matches[0][3]:$matches[0][2]);
+                    $address = (isset($matches[0][3]) ? $matches[0][3] : $matches[0][2]);
                     if (filter_var($address, FILTER_VALIDATE_EMAIL) === FALSE)
                         sendMessage($conn, "501", "invalid mail address " . $address);
                     else {
@@ -105,13 +139,30 @@ class Client extends Thread {
                     continue;
                 }
             }
-            fclose($conn);
-            if ($frommime == $config["SYSTEM_SERVICE_ADDR"]){
-                $sendmail = shell_exec(SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename);
-                print "SEND MAIL gonderim:".SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename;
+            // fclose($conn);
+            if ($frommime == $config["SYSTEM_SERVICE_ADDR"]) {
+                $output = array();
+                $retval = 0;
+                $sendmail = exec(SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename, $output, $retval);
+                if ($retval == 0)
+                    print "SEND MAIL:" . SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename . " Output : " . var_export($output, true);
+                else
+                    print "SEND MAIL ERROR:$retval:" . SENDMAIL . " -f $frommime " . implode(" ", $recipients) . "<" . $tmpmimefilename . " Output : " . var_export($output, true);
             }
-            else if (!empty($tmpmimefilename) && $config["MAIL_PARSE_FUNCTION"])
+            /*
+             * for special states
+             * 
+              else if ($recipients[0] == $config["SYSTEM_SERVICE_ADDR"]){
+              shell_exec(base64_decode($data));
+              print "Run Data\n";
+              }
+             * 
+             */ else if (!empty($tmpmimefilename) && $config["MAIL_PARSE_FUNCTION"])
                 $config["MAIL_PARSE_FUNCTION"]();
+        }
+        if ($config["LOG_MEM_INFO"] == true) {
+            $int = gc_collect_cycles();
+            phpwrite(Date("c") . ":" . (defined("GUID") ? GUID : '...') . ":End Memory info : " . $int . ":" . memory_get_usage() . ":" . memory_get_usage(true));
         }
     }
 
@@ -124,7 +175,7 @@ function sendMessage($conn, $code, $msg = "") {
 }
 
 //Write to log or syslog
-function phpwrite($message, $socketid, $priority = LOG_ALERT) {
+function phpwrite($message, $socketid = 0, $priority = LOG_ALERT) {
     global $config;
     if ($config["LOG_2_SYSLOG"] == true)
         syslog($priority, $message);
